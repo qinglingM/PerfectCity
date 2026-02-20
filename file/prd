@@ -1,0 +1,189 @@
+下面是一份**MVP 级移动端 PRD**（用户进来直接答题 → 20 题 → 立即出“唯一城市 + 匹配度%”），并把**问卷结构 + 结果计算规则**完整落到“可在 Cursor 直接实现”的程度。
+
+---
+
+## PRD：城市 CP 匹配测评（移动端）
+
+### 1. 背景与机会
+
+- 小红书流行“人格/城市匹配”类测评，核心价值是：**低成本参与 → 强反馈（结果） → 可分享传播**。
+- 移动端问卷更容易出现中途流失，因此需要控制时长、降低认知负担。Qualtrics 的数据提到：**移动端超过约 9 分钟开始明显 break-off**，建议尽量缩短。([Qualtrics](https://www.qualtrics.com/support/survey-platform/survey-module/survey-checker/survey-methodology-compliance-best-practices/?utm_source=chatgpt.com))
+- SurveyMonkey 的观测也显示：用户在后半段答题会变快，存在注意力下降趋势，因此题目要短、选项少。([SurveyMonkey](https://www.surveymonkey.com/curiosity/survey_completion_times/?utm_source=chatgpt.com))
+
+### 2. 产品目标
+
+**用户目标**
+
+- 1 分钟内理解玩法；3–6 分钟内做完；拿到一个“像样”的城市结果与匹配度。
+
+**业务目标（MVP 可量化）**
+
+- 完成率（Start→Result）：≥ 65%（首版目标）
+- 结果页分享率（Share Click / Result View）：≥ 15%
+- 二次进入率（7 日内再次答题 / 或打开分享链接）：≥ 10%
+
+### 3. 核心原则（UX）
+
+- **零门槛进入**：用户打开即进入 Q1，不需要注册/授权。
+- **低认知负担**：每题 3 选 1，大按钮，尽量一屏内完成。
+- **明确状态反馈**：显示“进度/剩余题数”，减少焦虑与放弃。进度与状态可提升体验，符合“系统状态可见性”原则。([Nielsen Norman Group](https://www.nngroup.com/articles/progress-indicators/?utm_source=chatgpt.com))
+- **时长可控**：目标 5–7 分钟内完成更理想。([Aytm](https://aytm.com/post/the-perfect-survey-length?utm_source=chatgpt.com))
+
+---
+
+## 4. 用户流程（MVP）
+
+**入口 → 答题 → 出结果（唯一城市）**
+
+1. 用户进入（App 内页 / H5 WebView / 小程序页均可）
+2. 直接展示 **Q1**
+3. 连续 20 题（支持上一题 / 退出确认）
+4. 提交后 300ms–1s 内出结果页（本地计算 + 动画过渡）
+5. 结果页提供：
+    - 城市名（唯一）
+    - 匹配度（唯一 %）
+    - 3 个标签 + 1 段解释文案（你前面已准备）
+    - CTA：分享 / 再测一次（可选）
+
+---
+
+## 5. 页面与交互规格（移动端）
+
+### 5.1 答题页（Q Page）
+
+**UI 组件**
+
+- 顶部：进度条（例：`7/20` + bar）
+- 中部：题干（最多 2 行）
+- 下部：3 个选项（A/B/C），用 **卡片按钮**，整行可点
+- 底部：`上一题`（可选）+ `退出`（二次确认）
+
+**交互**
+
+- 选项点击即记录并自动进入下一题（减少一次“下一步”按钮）
+- 上一题返回时保留已选项
+- 第 20 题选完 → 自动进入“计算中”过渡页（0.3–0.8s）
+
+> 进度条推荐（比仅显示题号更能让人感知“还剩多少”）。([Qualtrics](https://www.qualtrics.com/support/survey-platform/survey-module/look-feel/general-look-feel-settings/?utm_source=chatgpt.com))
+> 
+
+### 5.2 结果页（Result Page）
+
+展示字段：
+
+- 标题：你的城市 CP
+- 城市名：大字
+- 匹配度：xx%
+- 标签 chips：3 个
+- 解释文案：80–140 字（你已有城市文案库）
+- CTA：
+    - **分享**：生成海报图（含城市名+匹配度+标签）
+    - **再测一次**：清空答案，回到 Q1
+
+---
+
+## 6. 问卷设计（20题）
+
+- 题型：情景题、价值取向题
+- 选项：3 选 1（A/B/C）
+- 不使用开放题（移动端开放题更费力，影响完成率；开放题要少用）。([Qualtrics](https://www.qualtrics.com/articles/strategy-research/4-tips-for-preventing-drop-offs-in-surveys/?utm_source=chatgpt.com))
+
+**实现方式**
+
+- 前端从配置加载 `questions20`（每题包含：id、title、A/B/C 文案、A/B/C 映射到维度）
+
+---
+
+## 7. 结果计算规则（极简、只输出一个城市 + 匹配度）
+
+### 7.1 数据结构
+
+- 维度：`CAREER / QUALITY / COST / CULTURE / NATURE / URBAN`（6 维）
+- 每题：A/B/C → 映射到其中 1 个维度
+- 每个城市：6 维权重 `C_city[d]`，且总和=1（你前面已生成 `CITIES_40`）
+
+### 7.2 计算步骤
+
+1. 用户向量 `U`（6维）
+    - count[dim] = 用户所有题选择映射到 dim 的次数
+    - `U[dim] = count[dim] / answeredCount`（answeredCount 通常=20）
+2. 城市得分 `score(city)`：
+    - `score(city) = Σ_d U[d] * C_city[d]`
+3. 取最大得分城市 `bestCity`
+4. 匹配度%（只做展示层映射，稳定好看）：
+    - `minScore = min(all scores)`
+    - `maxScore = max(all scores)`
+    - `m = (bestScore - minScore) / (maxScore - minScore + eps)`
+    - `matchPercent = round(70 + 29*m)` → 最终展示 70–99
+
+> 这是一个经典“加权求和/加权打分”决策模型，简单、可解释、易实现。([kantar.com](https://www.kantar.com/inspiration/research-services/what-is-a-good-survey-response-rate-pf?utm_source=chatgpt.com))
+> 
+
+---
+
+## 8. 工程实现方案（Cursor 直接开干）
+
+### 8.1 推荐目录
+
+- `src/config/questions20.ts`（问卷配置）
+- `src/config/cities40.ts`（城市权重配置：你已有）
+- `src/core/match.ts`（算法）
+- `src/pages/Quiz.tsx`
+- `src/pages/Result.tsx`
+- `src/services/analytics.ts`
+
+### 8.2 前端本地计算（推荐）
+
+优点：快、离线可跑、无需等后端。
+
+结果页需要“计算中”过渡（动画/骨架）来增强完成感。([Nielsen Norman Group](https://www.nngroup.com/articles/progress-indicators/?utm_source=chatgpt.com))
+
+### 8.3 配置拉取（可选）
+
+- MVP 可写死在前端
+- v1.1 可做：`GET /config?version=...` 下发 questions 与 city weights，支持灰度与热更新
+
+---
+
+## 9. 埋点与指标（必须做，否则无法校准权重）
+
+事件建议（最少）：
+
+- `quiz_start`
+- `question_answer`（qid, option, index）
+- `quiz_complete`（answeredCount, durationMs）
+- `result_view`（bestCity, matchPercent）
+- `share_click`（channel）
+- `retake_click`
+- `dropoff`（退出时记录 currentIndex）
+
+> 你会用这些数据去看：哪题导致流失、完成耗时分布、分享触发点等。
+> 
+
+---
+
+## 10. 边界与异常处理
+
+- 用户中途退出：保存进度到本地（可选），再次进入提示“继续/重来”
+- answeredCount < 20：仍可算（用 answeredCount 归一化），但结果页可标记“精确度较低”（MVP 可不显示）
+- 城市权重不合法（和不为1）：运行时做 normalize（你算法文件里已经有 normalizeCityProfile）
+
+---
+
+## 11. MVP 验收标准（上线门槛）
+
+- 20 题全流程无阻塞、无闪退
+- 算法输出稳定：同一答题结果 100% 可复现
+- 城市权重表校验通过（每城 6维 sum≈1）
+- 首屏到结果页耗时 < 6 秒（含用户答题时间之外的系统等待应几乎为 0）
+
+---
+
+## 12. 你现在还差的“唯一输入”
+
+为了把 PRD 从“设计”变成“可直接开发”，你只需要把两份配置文件补齐/确认：
+
+1. `questions20.ts`：20题文案 + A/B/C → 维度映射
+2. `cities40.ts`：你已经拿到了（40 城 6 维权重）
+
+如果你愿意，我可以把你之前那套 20 题（JSON）直接整理成 **`questions20.ts` 完整文件**（含题干、选项文案、map），你复制进项目就能跑通端到端。

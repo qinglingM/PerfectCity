@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@theme {
+  /* Cute color palette mapping */
+  --color-primary: #FFB5A7;
+  --color-primary-dark: #FCA391;
+  --color-secondary: #FFCAD4;
+  --color-background: #FDFCDC;
+  --color-surface: #FFFFFF;
+  --color-text: #4A4A4A;
+  --color-text-light: #9B9B9B;
+  --color-success: #84DCC6;
+  --color-accent: #A0C4FF;
+
+  --font-sans: "Nunito", "Comic Sans MS", "Quicksand", system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Custom utility for cute shadows */
+@layer utilities {
+  .shadow-cute {
+    box-shadow: 0 4px 0 0 rgba(0, 0, 0, 0.1);
+  }
+  .shadow-cute-active {
+    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.1);
+    transform: translateY(4px);
+  }
+}
