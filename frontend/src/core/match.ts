@@ -10,10 +10,10 @@ export interface MatchResult {
     matchPercent: number;
 }
 
-export function calculateMatch(answers: UserAnswers): MatchResult {
+export function calculateMatch(answers: UserAnswers): MatchResult[] {
     const answerCount = Object.keys(answers).length;
     if (answerCount === 0) {
-        return { city: CITIES_40[0], matchPercent: 0 };
+        return [{ city: CITIES_40[0], matchPercent: 0 }];
     }
 
     // Calculate User Vector U
@@ -47,25 +47,21 @@ export function calculateMatch(answers: UserAnswers): MatchResult {
 
     const minScore = Math.min(...scores.map(s => s.score));
     const maxScore = Math.max(...scores.map(s => s.score));
-
-    // Find max score city
-    let best = scores[0];
-    for (const s of scores) {
-        if (s.score > best.score) best = s;
-    }
-
     const eps = 0.000001;
-    const m = (best.score - minScore) / (maxScore - minScore + eps);
 
-    // Calculate final percentage 70-99 mapping as specified in PRD
-    let matchPercent = Math.round(70 + 29 * m);
+    const results: MatchResult[] = scores.map(s => {
+        const m = (s.score - minScore) / (maxScore - minScore + eps);
+        let matchPercent = Math.round(70 + 29 * m);
+        if (matchPercent > 99) matchPercent = 99;
+        if (matchPercent < 70) matchPercent = 70;
+        return {
+            city: s.city,
+            matchPercent
+        };
+    });
 
-    // Cap at 99 just in case
-    if (matchPercent > 99) matchPercent = 99;
-    if (matchPercent < 70) matchPercent = 70;
+    // Sort descending by match percent
+    results.sort((a, b) => b.matchPercent - a.matchPercent);
 
-    return {
-        city: best.city,
-        matchPercent
-    };
+    return results;
 }

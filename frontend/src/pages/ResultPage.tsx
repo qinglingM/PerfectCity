@@ -1,26 +1,46 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import type { UserAnswers, MatchResult } from '../core/match';
 import { calculateMatch } from '../core/match';
 import { MapPin, Share2, RotateCcw } from 'lucide-react';
 
 interface ResultPageProps {
     answers: UserAnswers;
-    onRestart: () => void;
 }
 
-export default function ResultPage({ answers, onRestart }: ResultPageProps) {
-    const [result, setResult] = useState<MatchResult | null>(null);
+export default function ResultPage({ answers }: ResultPageProps) {
+    const navigate = useNavigate();
+    const [results, setResults] = useState<MatchResult[]>([]);
+
 
     useEffect(() => {
-        // Small delay to make the matching process feel "calculated"
         const timer = setTimeout(() => {
-            setResult(calculateMatch(answers));
+            setResults(calculateMatch(answers));
         }, 800);
         return () => clearTimeout(timer);
     }, [answers]);
 
-    if (!result) return null; // App.tsx is showing LOADING state overlay usually, but this is fallback
+    const handleShare = async () => {
+        const link = import.meta.env.VITE_XIAOHONGSHU_LINK || 'https://pages.xiaohongshu.com/goods/your-product-link';
+        try {
+            await navigator.clipboard.writeText(link);
+            alert('购买链接已复制，发给好友一起测吧～');
+        } catch {
+            prompt('复制以下链接发给好友：', link);
+        }
+    };
+
+    const handleRestart = () => {
+        navigate('/quiz', { replace: true });
+        // Force page reload to reset quiz state
+        window.location.reload();
+    };
+
+    if (results.length === 0) return null;
+
+    const mainResult = results[0];
+    const otherResults = results.slice(1, 4);
 
     return (
         <motion.div
@@ -28,23 +48,15 @@ export default function ResultPage({ answers, onRestart }: ResultPageProps) {
             animate={{ opacity: 1, scale: 1 }}
             className="absolute inset-0 bg-gradient-to-b from-[#FFF2ED] to-[#FFCAD4] flex flex-col items-center p-8 overflow-y-auto"
         >
-            <div className="w-full flex justify-between items-center mb-6">
-                <button
-                    onClick={onRestart}
-                    className="p-3 bg-white/50 backdrop-blur rounded-full text-[#4A4A4A] shadow-cute"
-                >
-                    <RotateCcw size={20} />
-                </button>
+            <div className="w-full flex justify-center items-center mb-6 relative">
                 <div className="font-bold text-[#FFB5A7] py-2 px-4 bg-white rounded-full shadow-cute text-sm">
                     你的专属报告
                 </div>
-                <div className="w-11" /> {/* Spacer */}
             </div>
 
             <div className="w-full bg-white rounded-[32px] p-8 shadow-2xl relative mt-4">
-                {/* Floating badge */}
                 <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-[#FFB5A7] text-white px-6 py-2 rounded-full font-black text-lg border-4 border-white shadow-cute">
-                    MATCH {result.matchPercent}%
+                    匹配度 {mainResult.matchPercent}%
                 </div>
 
                 <div className="flex flex-col items-center mt-6">
@@ -53,7 +65,7 @@ export default function ResultPage({ answers, onRestart }: ResultPageProps) {
                     </div>
 
                     <h1 className="text-5xl font-black text-[#4A4A4A] mb-2 tracking-widest">
-                        {result.city.name}
+                        {mainResult.city.name}
                     </h1>
 
                     <p className="text-[#9B9B9B] font-medium mb-8">
@@ -81,13 +93,47 @@ export default function ResultPage({ answers, onRestart }: ResultPageProps) {
                 </div>
             </div>
 
-            <div className="mt-8 flex gap-4 w-full">
-                <button className="flex-1 py-4 bg-[#84DCC6] text-white rounded-[24px] font-bold text-lg shadow-cute flex justify-center items-center gap-2">
-                    <Share2 size={20} />
-                    <span>分享结果</span>
-                </button>
+            {/* Other Matches */}
+            <div className="w-full mt-8 flex flex-col gap-4">
+                <h3 className="text-[#4A4A4A] font-bold text-lg px-2 text-center mb-2">其他高匹配度城市</h3>
+                {otherResults.map((res, index) => (
+                    <div key={res.city.name} className="bg-white/80 backdrop-blur rounded-[24px] p-5 shadow-cute border-2 border-white flex flex-col relative overflow-hidden">
+                        <div className="absolute top-0 right-0 bg-[#FFB5A7] text-white px-3 py-1 rounded-bl-xl font-bold text-sm">
+                            TOP {index + 2}
+                        </div>
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                                <div className="w-10 h-10 bg-[#FFCAD4]/30 rounded-full flex items-center justify-center">
+                                    <MapPin size={20} className="text-[#fc816b]" />
+                                </div>
+                                <h3 className="text-2xl font-black text-[#4A4A4A]">{res.city.name}</h3>
+                            </div>
+                            <div className="text-xl font-black text-[#84DCC6]">{res.matchPercent}%</div>
+                        </div>
+                        <div className="flex flex-wrap gap-2 mb-3">
+                            <span className="bg-[#FDFCDC] text-[#B5B246] px-3 py-1 rounded-full text-xs font-bold">
+                                #生活方式相近
+                            </span>
+                            <span className="bg-[#FDFCDC] text-[#B5B246] px-3 py-1 rounded-full text-xs font-bold">
+                                #值得考虑
+                            </span>
+                        </div>
+                        <p className="text-sm text-[#9B9B9B] leading-relaxed">
+                            {res.city.name} 也很适合你，它的节奏和你的期待高度重合，也是一个非常不错的备选地。
+                        </p>
+                    </div>
+                ))}
             </div>
 
+            <div className="mt-8 flex flex-col gap-4 w-full">
+                <button
+                    onClick={handleRestart}
+                    className="w-full py-4 bg-white text-[#fc816b] border-2 border-[#FFCAD4] rounded-[24px] font-bold text-lg shadow-cute flex justify-center items-center gap-2"
+                >
+                    <RotateCcw size={20} />
+                    <span>重新测试</span>
+                </button>
+            </div>
         </motion.div>
     );
 }
