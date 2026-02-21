@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import type { UserAnswers, MatchResult } from '../core/match';
 import { calculateMatch } from '../core/match';
-import { MapPin, Share2, RotateCcw } from 'lucide-react';
+import { MapPin, RotateCcw } from 'lucide-react';
 
 interface ResultPageProps {
     answers: UserAnswers;
@@ -21,15 +21,7 @@ export default function ResultPage({ answers }: ResultPageProps) {
         return () => clearTimeout(timer);
     }, [answers]);
 
-    const handleShare = async () => {
-        const link = import.meta.env.VITE_XIAOHONGSHU_LINK || 'https://pages.xiaohongshu.com/goods/your-product-link';
-        try {
-            await navigator.clipboard.writeText(link);
-            alert('购买链接已复制，发给好友一起测吧～');
-        } catch {
-            prompt('复制以下链接发给好友：', link);
-        }
-    };
+
 
     const handleRestart = () => {
         navigate('/quiz', { replace: true });
