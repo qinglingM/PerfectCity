@@ -46,23 +46,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
-    // Verify a code exists and has been used (activated)
+    // Verify a code exists in the database (allows unlimited reuse)
     const verifyCode = async (code: string): Promise<boolean> => {
         try {
             const { data, error } = await supabase
                 .from('activation_codes')
-                .select('id, status')
+                .select('id')
                 .eq('code', code)
                 .single();
 
             if (error || !data) return false;
-            return data.status === 'used';
+            return true;
         } catch {
             return false;
         }
     };
 
-    // Activate a new code
+    // Activate a code (unlimited reuse — only checks if code exists)
     const activate = async (code: string): Promise<{ success: boolean; error?: string }> => {
         try {
             const normalizedCode = code.trim().toUpperCase();
@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // Check if code exists
             const { data: codeData, error: fetchError } = await supabase
                 .from('activation_codes')
-                .select('*')
+                .select('id, code, expires_at')
                 .eq('code', normalizedCode)
                 .single();
 
@@ -78,38 +78,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 return { success: false, error: '激活码不存在，请检查后重试' };
             }
 
-            // Check status
-            if (codeData.status === 'used') {
-                // Check if it's "our" code (same browser)
-                const savedCode = localStorage.getItem(STORAGE_KEY);
-                if (savedCode === normalizedCode) {
-                    setHasAccess(true);
-                    return { success: true };
-                }
-                return { success: false, error: '该激活码已被使用' };
-            }
-
-            if (codeData.status === 'expired') {
-                return { success: false, error: '该激活码已过期' };
-            }
-
             // Check expiry date
             if (codeData.expires_at && new Date(codeData.expires_at) < new Date()) {
                 return { success: false, error: '该激活码已过期' };
-            }
-
-            // Mark as used
-            const { error: updateError } = await supabase
-                .from('activation_codes')
-                .update({
-                    status: 'used',
-                    used_at: new Date().toISOString()
-                })
-                .eq('id', codeData.id);
-
-            if (updateError) {
-                console.error('Activation update error:', updateError);
-                return { success: false, error: '激活失败，请重试' };
             }
 
             // Save to localStorage
