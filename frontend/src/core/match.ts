@@ -10,6 +10,25 @@ export interface MatchResult {
     matchPercent: number;
 }
 
+function fingerprintAnswers(answers: UserAnswers): number {
+    return Object.entries(answers)
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .reduce((hash, [qId, answer]) => {
+            const answerCode = answer === 'A' ? 1 : answer === 'B' ? 2 : 3;
+            return (hash * 31 + Number(qId) * 7 + answerCode) % 1000003;
+        }, 17);
+}
+
+function tieBreakNoise(cityName: string, fingerprint: number): number {
+    let hash = fingerprint;
+    for (const ch of cityName) {
+        hash = (hash * 33 + ch.charCodeAt(0)) % 1000003;
+    }
+
+    // Deterministic micro-noise in [-0.002, 0.002], only used for near-ties.
+    return ((hash % 2001) / 2000 - 0.5) * 0.004;
+}
+
 export function calculateMatch(answers: UserAnswers): MatchResult[] {
     const answerCount = Object.keys(answers).length;
     if (answerCount === 0) {
@@ -37,31 +56,43 @@ export function calculateMatch(answers: UserAnswers): MatchResult[] {
     }
 
     // Calculate city scores
+    const answerFingerprint = fingerprintAnswers(answers);
+
     const scores = CITIES_40.map(city => {
         let score = 0;
         for (const dim in U) {
             score += U[dim as Dimension] * city.w[dim as Dimension];
         }
-        return { city, score };
+        score += city.bias ?? 0;
+        return { city, score, adjustedScore: score };
     });
 
-    const minScore = Math.min(...scores.map(s => s.score));
-    const maxScore = Math.max(...scores.map(s => s.score));
+    const topScore = Math.max(...scores.map(s => s.score));
+    const tieWindow = 0.015;
+
+    for (const entry of scores) {
+        if (topScore - entry.score <= tieWindow) {
+            entry.adjustedScore += tieBreakNoise(entry.city.name, answerFingerprint);
+        }
+    }
+
+    const minScore = Math.min(...scores.map(s => s.adjustedScore));
+    const maxScore = Math.max(...scores.map(s => s.adjustedScore));
     const eps = 0.000001;
 
-    const results: MatchResult[] = scores.map(s => {
-        const m = (s.score - minScore) / (maxScore - minScore + eps);
+    const results = scores.map(s => {
+        const m = (s.adjustedScore - minScore) / (maxScore - minScore + eps);
         let matchPercent = Math.round(70 + 29 * m);
         if (matchPercent > 99) matchPercent = 99;
         if (matchPercent < 70) matchPercent = 70;
         return {
             city: s.city,
-            matchPercent
+            matchPercent,
+            adjustedScore: s.adjustedScore
         };
     });
 
-    // Sort descending by match percent
-    results.sort((a, b) => b.matchPercent - a.matchPercent);
+    results.sort((a, b) => b.adjustedScore - a.adjustedScore);
 
-    return results;
+    return results.map(({ city, matchPercent }) => ({ city, matchPercent }));
 }
